@@ -11,12 +11,33 @@ import (
 
 	"git.sr.ht/~jackmordaunt/go-toast/wintoast"
 	"github.com/gen2brain/beeep"
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
 	windowsToastCallbackOnce sync.Once
 	windowsToastCopies       sync.Map
+	windowsAppIconCleanup    sync.Once
 )
+
+func init() {
+	windowsAppIconCleanup.Do(clearLegacyFeedAppIcon)
+}
+
+func clearLegacyFeedAppIcon() {
+	const appRegistryKey = `SOFTWARE\Classes\AppUserModelId\RSS Notifier`
+	key, err := registry.OpenKey(registry.CURRENT_USER, appRegistryKey, registry.SET_VALUE)
+	if err != nil {
+		if err != registry.ErrNotExist {
+			log.Printf("Could not open app notification registry key: %v", err)
+		}
+		return
+	}
+	defer key.Close()
+	if err := key.DeleteValue("IconUri"); err != nil && err != registry.ErrNotExist {
+		log.Printf("Could not clear feed icon from app notification registration: %v", err)
+	}
+}
 
 type windowsToast struct {
 	XMLName        xml.Name            `xml:"toast"`
@@ -123,7 +144,8 @@ func sendArticleNotification(appName, title, body, iconPath, articleURL string, 
 	}
 	payload, err := xml.Marshal(notification)
 	if err == nil {
-		err = wintoast.SetAppData(wintoast.AppData{AppID: "RSS Notifier", IconPath: iconPath})
+		windowsAppIconCleanup.Do(clearLegacyFeedAppIcon)
+		err = wintoast.SetAppData(wintoast.AppData{AppID: "RSS Notifier"})
 	}
 	if err == nil {
 		fullPayload := xml.Header + string(payload)
