@@ -12,7 +12,12 @@ import (
 )
 
 const customTimeFormat = "2006/01/02 15:04:05"
-const checkInterval = 45 * time.Minute
+const defaultCheckInterval = 45 * time.Minute
+
+type AppConfig struct {
+	CheckInterval time.Duration
+	Feeds         []Feed
+}
 
 // Feed is one RSS/Atom feed to watch. Icon is a filename in the icons directory.
 type Feed struct {
@@ -86,16 +91,16 @@ func checkAllFeeds(feeds []Feed) {
 }
 
 func main() {
-	feeds, err := loadFeeds()
+	config, err := loadConfig()
 	if err != nil {
 		log.Fatal("Could not load feed configuration:", err)
 	}
 	fmt.Println("rss-notifier started.")
-	fmt.Printf("Checking every %s\n\n", checkInterval)
-	checkAllFeeds(feeds)
-	ticker := time.NewTicker(checkInterval)
+	fmt.Printf("Checking every %s\n\n", config.CheckInterval)
+	checkAllFeeds(config.Feeds)
+	ticker := time.NewTicker(config.CheckInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		checkAllFeeds(feeds)
+		checkAllFeeds(config.Feeds)
 	}
 }

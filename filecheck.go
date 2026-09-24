@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 func dataDir() string {
@@ -22,29 +24,57 @@ func dataDir() string {
 
 func feedsFilePath() string { return filepath.Join(dataDir(), "feeds.json") }
 
-func loadFeeds() ([]Feed, error) {
+type configFile struct {
+	CheckInterval string `json:"check_interval"`
+	Feeds         []Feed `json:"feeds"`
+}
+
+func loadConfig() (AppConfig, error) {
 	path := feedsFilePath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		data = []byte("[]\n")
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			return nil, fmt.Errorf("create default config %s: %w", path, err)
+		initial := configFile{CheckInterval: defaultCheckInterval.String(), Feeds: []Feed{}}
+		data, err = json.MarshalIndent(initial, "", "  ")
+		if err != nil {
+			return AppConfig{}, err
 		}
-		log.Printf("Created empty feed configuration at %s; add subscriptions to this file", path)
+		data = append(data, '\n')
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return AppConfig{}, fmt.Errorf("create config %s: %w", path, err)
+		}
+		log.Printf("Created feed configuration at %s", path)
 	} else if err != nil {
-		return nil, fmt.Errorf("read config %s: %w", path, err)
+		return AppConfig{}, fmt.Errorf("read config %s: %w", path, err)
 	}
 
+	interval := defaultCheckInterval
 	var feeds []Feed
-	if err := json.Unmarshal(data, &feeds); err != nil {
-		return nil, fmt.Errorf("parse config %s: %w", path, err)
-	}
-	for i, feed := range feeds {
-		if feed.Name == "" || feed.URL == "" {
-			return nil, fmt.Errorf("config %s: feed %d must include name and url", path, i+1)
+	trimmed := strings.TrimSpace(string(data))
+	if strings.HasPrefix(trimmed, "[") {
+		// Keep reading the previous bare-array format with the default interval.
+		if err := json.Unmarshal(data, &feeds); err != nil {
+			return AppConfig{}, fmt.Errorf("parse config %s: %w", path, err)
+		}
+	} else {
+		var config configFile
+		if err := json.Unmarshal(data, &config); err != nil {
+			return AppConfig{}, fmt.Errorf("parse config %s: %w", path, err)
+		}
+		feeds = config.Feeds
+		if config.CheckInterval != "" {
+			interval, err = time.ParseDuration(config.CheckInterval)
+			if err != nil || interval <= 0 {
+				return AppConfig{}, fmt.Errorf("config %s: check_interval must be a positive duration such as \"45m\"", path)
+			}
 		}
 	}
-	return feeds, nil
+
+	for i, feed := range feeds {
+		if feed.Name == "" || feed.URL == "" {
+			return AppConfig{}, fmt.Errorf("config %s: feed %d must include name and url", path, i+1)
+		}
+	}
+	return AppConfig{CheckInterval: interval, Feeds: feeds}, nil
 }
 
 // -----------------------------------------------------------------------------
