@@ -1,20 +1,22 @@
 # RSS Notifier
 
-一个用 Go 编写的轻量级 RSS/Atom 更新提醒程序。程序启动后立即检查订阅源，之后按配置的间隔检查；发现符合筛选条件的新条目时，通过桌面通知提醒，并将已处理条目记录在本地，避免重复通知。通知内容包含文章链接。
+**English** | [简体中文](README.zh-CN.md)
 
-本项目最初通过 Claude 网页版编写。
+A lightweight RSS/Atom update notifier written in Go. It checks feeds immediately at startup and then at the configured interval. New entries that match a feed's filter trigger desktop notifications, and processed entries are stored locally to prevent duplicate notifications. Notifications include a link to the article.
 
-## 功能
+This project was originally written with help from Claude Web.
 
-- 支持 RSS、Atom 和 JSON Feed（由 `gofeed` 解析）。
-- 可为每个订阅源设置标题关键词筛选。
-- 使用 `beeep` 发送桌面通知。
-- 将已见条目保存到 `~/.local/share/rss-notifier/seen.json`。
-- 支持为订阅源配置本地图标，图标目录为 `~/.local/share/rss-notifier/icons/`。
+## Features
 
-## 配置订阅源
+- Parses RSS, Atom, and JSON Feed using `gofeed`.
+- Supports an optional, case-insensitive title filter for each feed.
+- Sends desktop notifications with `beeep`.
+- Stores seen entries in `~/.local/share/rss-notifier/seen.json`.
+- Supports local notification icons in `~/.local/share/rss-notifier/icons/`.
 
-订阅配置位于 `~/.local/share/rss-notifier/feeds.json`。首次运行时，程序会在该目录生成默认配置（45 分钟间隔、空订阅列表）；编辑该文件添加订阅或调整间隔。配置包含检查间隔和订阅列表；每项订阅包含名称、Feed 地址、可选标题筛选词和可选图标文件名：
+## Feed configuration
+
+The configuration file is `~/.local/share/rss-notifier/feeds.json`. On first run, the program creates it with a 45-minute interval and an empty feed list. Edit the file to add feeds or change the interval:
 
 ```json
 {
@@ -30,29 +32,27 @@
 }
 ```
 
-`check_interval` 使用 Go 时长格式，例如 `30m` 或 `1h`，且必须大于零。旧版纯数组配置仍可读取，默认间隔为 45 分钟。`filter` 留空或省略表示不筛选，筛选不区分大小写。`icon` 留空或省略表示使用系统默认图标。图标文件应放在 `~/.local/share/rss-notifier/icons/` 下。
+`check_interval` uses Go duration syntax, such as `30m` or `1h`, and must be greater than zero. The previous bare-array feed configuration is still supported, using a 45-minute interval. Omit `filter` or set it to an empty string to match every title. Omit `icon` to use the system default. Place icon files in `~/.local/share/rss-notifier/icons/`.
 
-## 运行
+## Run
 
-需要安装 Go（版本以 `go.mod` 为准）以及当前桌面环境可用的通知服务。然后在项目目录执行：
+Install Go (the required version is specified in `go.mod`) and make sure a desktop notification service is available. From the project directory, run:
 
 ```sh
 go run .
 ```
 
-也可以编译后运行：
+To build and run a binary:
 
 ```sh
 go build -o rss-notifier .
 ./rss-notifier
 ```
 
-首次启动会静默记录订阅源当前已有的文章作为初始状态，后续新文章才发送通知；之后按 `check_interval` 指定的间隔检查。运行期间可用 `Ctrl+C` 退出。
+On the first run, the program quietly records existing feed entries as its baseline. It notifies you about new entries after initialization. It then checks feeds at the configured `check_interval`. Press `Ctrl+C` to stop it.
 
-## 数据与图标位置
+## Data and icons
 
-- 订阅配置：`~/.local/share/rss-notifier/feeds.json`
-- 已见条目：`~/.local/share/rss-notifier/seen.json`
-- 图标：`~/.local/share/rss-notifier/icons/`
-
-首次创建配置时，检查间隔默认为 45 分钟，可在 `feeds.json` 的 `check_interval` 中修改。
+- Feed configuration: `~/.local/share/rss-notifier/feeds.json`
+- Seen entries: `~/.local/share/rss-notifier/seen.json`
+- Icons: `~/.local/share/rss-notifier/icons/`
