@@ -25,15 +25,26 @@ func dataDir() string {
 func feedsFilePath() string { return filepath.Join(dataDir(), "feeds.json") }
 
 type configFile struct {
-	CheckInterval string `json:"check_interval"`
-	Feeds         []Feed `json:"feeds"`
+	CheckInterval       string `json:"check_interval"`
+	NotificationTimeout string `json:"notification_timeout"`
+	NotificationUrgency string `json:"notification_urgency"`
+	OpenLinkOnClick     *bool  `json:"open_link_on_click"`
+	DismissOnCopy       *bool  `json:"dismiss_on_copy"`
+	Feeds               []Feed `json:"feeds"`
 }
 
 func loadConfig() (AppConfig, error) {
 	path := feedsFilePath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		initial := configFile{CheckInterval: defaultCheckInterval.String(), Feeds: []Feed{}}
+		initial := configFile{
+			CheckInterval:       defaultCheckInterval.String(),
+			NotificationTimeout: defaultNotificationTimeout.String(),
+			NotificationUrgency: defaultNotificationUrgency,
+			OpenLinkOnClick:     boolPointer(true),
+			DismissOnCopy:       boolPointer(true),
+			Feeds:               []Feed{},
+		}
 		data, err = json.MarshalIndent(initial, "", "  ")
 		if err != nil {
 			return AppConfig{}, err
@@ -48,6 +59,10 @@ func loadConfig() (AppConfig, error) {
 	}
 
 	interval := defaultCheckInterval
+	notificationTimeout := defaultNotificationTimeout
+	notificationUrgency := defaultNotificationUrgency
+	openLinkOnClick := true
+	dismissOnCopy := true
 	var feeds []Feed
 	trimmed := strings.TrimSpace(string(data))
 	if strings.HasPrefix(trimmed, "[") {
@@ -67,6 +82,24 @@ func loadConfig() (AppConfig, error) {
 				return AppConfig{}, fmt.Errorf("config %s: check_interval must be a positive duration such as \"45m\"", path)
 			}
 		}
+		if config.NotificationTimeout != "" {
+			notificationTimeout, err = parseNotificationTimeout(config.NotificationTimeout)
+			if err != nil {
+				return AppConfig{}, fmt.Errorf("config %s: notification_timeout must be a non-negative Go duration such as \"10s\" or \"never\"", path)
+			}
+		}
+		if config.NotificationUrgency != "" {
+			notificationUrgency, err = parseNotificationUrgency(config.NotificationUrgency)
+			if err != nil {
+				return AppConfig{}, fmt.Errorf("config %s: notification_urgency must be low, normal, or critical", path)
+			}
+		}
+		if config.OpenLinkOnClick != nil {
+			openLinkOnClick = *config.OpenLinkOnClick
+		}
+		if config.DismissOnCopy != nil {
+			dismissOnCopy = *config.DismissOnCopy
+		}
 	}
 
 	for i, feed := range feeds {
@@ -74,7 +107,39 @@ func loadConfig() (AppConfig, error) {
 			return AppConfig{}, fmt.Errorf("config %s: feed %d must include name and url", path, i+1)
 		}
 	}
-	return AppConfig{CheckInterval: interval, Feeds: feeds}, nil
+	return AppConfig{CheckInterval: interval, NotificationTimeout: notificationTimeout, NotificationUrgency: notificationUrgency, OpenLinkOnClick: openLinkOnClick, DismissOnCopy: dismissOnCopy, Feeds: feeds}, nil
+}
+
+func boolPointer(value bool) *bool {
+	return &value
+}
+
+func parseNotificationUrgency(value string) (string, error) {
+	urgency := strings.ToLower(strings.TrimSpace(value))
+	switch urgency {
+	case "low", "normal", "critical":
+		return urgency, nil
+	default:
+		return "", fmt.Errorf("invalid notification urgency %q", value)
+	}
+}
+
+func parseNotificationTimeout(value string) (time.Duration, error) {
+	if strings.EqualFold(strings.TrimSpace(value), "never") {
+		return 0, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration < 0 {
+		return 0, fmt.Errorf("invalid notification timeout %q", value)
+	}
+	return duration, nil
+}
+
+func formatNotificationTimeout(timeout time.Duration) string {
+	if timeout == 0 {
+		return "never"
+	}
+	return timeout.String()
 }
 
 // -----------------------------------------------------------------------------
