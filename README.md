@@ -14,7 +14,7 @@
 
 ## 配置订阅源
 
-订阅配置位于 `~/.local/share/rss-notifier/feeds.json`。首次运行时，程序会在该目录生成包含默认订阅的配置文件。每项包含名称、Feed 地址、可选标题筛选词和可选图标文件名：
+订阅配置位于 `~/.local/share/rss-notifier/feeds.json`。首次运行时，程序会在该目录生成空配置文件；编辑该文件添加订阅。每项包含名称、Feed 地址、可选标题筛选词和可选图标文件名：
 
 ```go
 [
@@ -56,4 +56,4 @@ go build -o rss-notifier .
 - 已见条目：`~/.local/share/rss-notifier/seen.json`
 - 图标：`~/.local/share/rss-notifier/icons/`
 
-Feed 列表和检查间隔目前直接在源码中配置。当前默认订阅 Linux 内核 LTS 及 Arch Linux 新闻源。
+检查间隔目前在源码中设置为 45 分钟。

@@ -51,7 +51,7 @@ func checkFeed(feed Feed, seen map[string]bool, notify bool) bool {
 		if item.PublishedParsed != nil {
 			date = item.PublishedParsed.Format(customTimeFormat)
 		}
-		body := fmt.Sprintf("更新时间：%s\n%s", date, item.Link)
+		body := fmt.Sprintf("更新时间：%s\n链接：%s\n", date, item.Link)
 		title := item.Title
 		beeep.AppName = feed.Name
 		if feed.Name == "LTS Kernel" {

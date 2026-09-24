@@ -26,14 +26,11 @@ func loadFeeds() ([]Feed, error) {
 	path := feedsFilePath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		data, err = json.MarshalIndent(defaultFeeds, "", "  ")
-		if err != nil {
-			return nil, err
-		}
+		data = []byte("[]\n")
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			return nil, fmt.Errorf("create default config %s: %w", path, err)
 		}
-		log.Printf("Created default feed configuration at %s", path)
+		log.Printf("Created empty feed configuration at %s; add subscriptions to this file", path)
 	} else if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
