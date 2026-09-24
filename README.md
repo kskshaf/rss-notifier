@@ -1,6 +1,6 @@
 # RSS Notifier
 
-一个用 Go 编写的轻量级 RSS/Atom 更新提醒程序。程序启动后立即检查订阅源，之后每 45 分钟检查一次；发现符合筛选条件的新条目时，通过桌面通知提醒，并将已处理条目记录在本地，避免重复通知。
+一个用 Go 编写的轻量级 RSS/Atom 更新提醒程序。程序启动后立即检查订阅源，之后每 45 分钟检查一次；发现符合筛选条件的新条目时，通过桌面通知提醒，并将已处理条目记录在本地，避免重复通知。通知内容包含文章链接。
 
 本项目最初通过 Claude 网页版编写。
 
@@ -14,18 +14,20 @@
 
 ## 配置订阅源
 
-编辑 [`rsstest.go`](rsstest.go) 中的 `feeds` 列表。每项包含名称、Feed 地址、可选标题筛选词和可选图标文件名：
+订阅配置位于 `~/.local/share/rss-notifier/feeds.json`。首次运行时，程序会在该目录生成包含默认订阅的配置文件。每项包含名称、Feed 地址、可选标题筛选词和可选图标文件名：
 
 ```go
-{
-    Name:   "Example Feed",
-    URL:    "https://example.com/feed.xml",
-    Filter: "release", // 留空表示不筛选
-    Icon:   "example.png", // 留空表示使用系统默认图标
-},
+[
+  {
+    "name": "Example Feed",
+    "url": "https://example.com/feed.xml",
+    "filter": "release",
+    "icon": "example.png"
+  }
+]
 ```
 
-筛选不区分大小写。图标文件应放在 `~/.local/share/rss-notifier/icons/` 下。
+`filter` 留空或省略表示不筛选，筛选不区分大小写。`icon` 留空或省略表示使用系统默认图标。图标文件应放在 `~/.local/share/rss-notifier/icons/` 下。
 
 ## 运行
 
@@ -42,7 +44,7 @@ go build -o rss-notifier .
 ./rss-notifier
 ```
 
-程序会在启动时立即检查一次，随后每 45 分钟检查。运行期间可用 `Ctrl+C` 退出。
+首次启动会静默记录订阅源当前已有的文章作为初始状态，后续新文章才发送通知；之后每 45 分钟检查一次。运行期间可用 `Ctrl+C` 退出。
 
 ## 本地依赖说明
 
@@ -50,6 +52,7 @@ go build -o rss-notifier .
 
 ## 数据与图标位置
 
+- 订阅配置：`~/.local/share/rss-notifier/feeds.json`
 - 已见条目：`~/.local/share/rss-notifier/seen.json`
 - 图标：`~/.local/share/rss-notifier/icons/`
 

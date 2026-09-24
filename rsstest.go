@@ -1,5 +1,4 @@
-// rss-notifier: A lightweight RSS feed watcher that sends desktop notifications.
-// Great for learning Go! Each section is commented to explain what's happening.
+// rss-notifier periodically checks RSS feeds and sends desktop notifications.
 package main
 
 import (
@@ -8,157 +7,95 @@ import (
 	"strings"
 	"time"
 
-	// gofeed: parses RSS, Atom, and JSON feeds
-	"github.com/mmcdole/gofeed"
-
-	// beeep: sends cross-platform desktop notifications
 	"github.com/gen2brain/beeep"
+	"github.com/mmcdole/gofeed"
 )
 
-// -----------------------------------------------------------------------------
-// Configuration
-// Edit this section to add/remove feeds and change settings.
-// -----------------------------------------------------------------------------
-
-const custom_time_format string = "2006/01/02 15:04:05"
-
-// How often to check feeds
+const customTimeFormat = "2006/01/02 15:04:05"
 const checkInterval = 45 * time.Minute
 
-// Feed represents a single RSS/Atom feed to watch.
+// Feed is one RSS/Atom feed to watch. Icon is a filename in the icons directory.
 type Feed struct {
-	Name   string // Friendly name shown in notifications
-	URL    string // The RSS/Atom feed URL
-	Filter string // Optional: only notify if title contains this string (case-insensitive). Leave "" for all.
-	Icon   string // Optional: Icon for notify, local file only
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Filter string `json:"filter,omitempty"`
+	Icon   string `json:"icon,omitempty"`
 }
 
-// feeds is your list of subscribed feeds.
-// Add or remove entries here to customize what you follow.
-// Please put icons in ~/.local/share/rss-notifier/icons
-var feeds = []Feed{
-	{
-		Name:   "LTS Kernel",
-		URL:    "https://www.kernel.org/feeds/kdist.xml",
-		Filter: "6.18", // Only notify for LTS 6.18 releases
-		Icon:   "tux.png",
-	},
-	{
-		Name:   "ArchLinux Latest News",
-		URL:    "https://archlinux.org/feeds/news/",
-		Filter: "",
-		Icon:   "arch.png",
-	},
-}
-
-// -----------------------------------------------------------------------------
-// Core logic: fetching feeds and sending notifications
-// -----------------------------------------------------------------------------
-
-// checkFeed fetches a single feed and sends notifications for new entries.
-// It takes a pointer to the seen map so it can update it in place.
-func checkFeed(feed Feed, seen map[string]bool) {
-	// gofeed.NewParser() creates a new feed parser
-	fp := gofeed.NewParser()
-
-	// fp.ParseURL fetches and parses the feed from the internet
-	// In Go, functions often return (value, error) — always check the error!
-	parsedFeed, err := fp.ParseURL(feed.URL)
+func checkFeed(feed Feed, seen map[string]bool, notify bool) bool {
+	parsedFeed, err := gofeed.NewParser().ParseURL(feed.URL)
 	if err != nil {
-		log.Printf("Error fetching feed '%s': %v\n", feed.Name, err)
-		return // return early on error (like continue in other languages)
+		log.Printf("Error fetching feed '%s': %v", feed.Name, err)
+		return false
 	}
 
 	iconPath := checkIcon(feed.Icon)
-
-	// Loop over each item in the feed
-	// In Go, range gives you (index, value) for slices
 	for _, item := range parsedFeed.Items {
-		// Build a unique ID for this entry.
-		// We prefer the feed's own GUID, but fall back to the link URL.
 		id := item.GUID
 		if id == "" {
 			id = item.Link
 		}
-
-		// Skip if we've already seen this entry
-		if seen[id] {
+		if id == "" || seen[id] {
 			continue
 		}
-
-		// Apply filter: skip if title doesn't contain the filter string
-		// strings.Contains is case-sensitive, so we use ToLower on both sides
 		if feed.Filter != "" && !strings.Contains(strings.ToLower(item.Title), strings.ToLower(feed.Filter)) {
-			// Mark as seen so we don't recheck it every time
+			seen[id] = true
+			continue
+		}
+		if !notify {
 			seen[id] = true
 			continue
 		}
 
-		// Format it nicely for your notification body
 		date := ""
 		if item.PublishedParsed != nil {
-			date = item.PublishedParsed.Format(custom_time_format)
+			date = item.PublishedParsed.Format(customTimeFormat)
 		}
-
-		// Build the notification message
-		title := fmt.Sprintf("%s", item.Title)
-		// body := item.Link + item.UpdatedParsed// Show the URL as the notification body
-		body := fmt.Sprintf("更新时间：%s\n", date)
-
-		// beeep.Notify sends a desktop notification via libnotify (notify-send)
-		// Arguments: title, message, icon path (empty = default)
-
+		body := fmt.Sprintf("更新时间：%s\n%s", date, item.Link)
+		title := item.Title
 		beeep.AppName = feed.Name
 		if feed.Name == "LTS Kernel" {
 			beeep.AppName = feed.Name + " " + feed.Filter
 			title = strings.Replace(item.Title, ": longterm", "", 1)
 		}
-
 		if err := beeep.Alert(title, body, iconPath); err != nil {
-			log.Printf("Error sending notification for '%s': %v\n", item.Title, err)
+			log.Printf("Error sending notification for '%s': %v", item.Title, err)
 		} else {
 			fmt.Printf("Notified: [%s] %s\n", feed.Name, item.Title)
 		}
-
-		// Mark this entry as seen
 		seen[id] = true
 	}
+	return true
 }
 
-// checkAllFeeds iterates over all configured feeds.
-func checkAllFeeds() {
-	fmt.Println("Checking feeds at", time.Now().Format(custom_time_format))
-
-	// Load seen entries from disk
+func checkAllFeeds(feeds []Feed) {
+	fmt.Println("Checking feeds at", time.Now().Format(customTimeFormat))
 	seen := loadSeen()
-
-	// Check each feed
+	initialized := isInitialized()
+	allFetched := true
 	for _, feed := range feeds {
-		checkFeed(feed, seen)
+		if !checkFeed(feed, seen, initialized) {
+			allFetched = false
+		}
 	}
-
-	// Save updated seen entries back to disk
 	saveSeen(seen)
+	if !initialized && allFetched {
+		markInitialized()
+		fmt.Println("Initial feed scan complete; existing entries were recorded without notifications.")
+	}
 }
-
-// -----------------------------------------------------------------------------
-// Entry point
-// -----------------------------------------------------------------------------
 
 func main() {
+	feeds, err := loadFeeds()
+	if err != nil {
+		log.Fatal("Could not load feed configuration:", err)
+	}
 	fmt.Println("rss-notifier started.")
 	fmt.Printf("Checking every %s\n\n", checkInterval)
-
-	// Check immediately on startup
-	checkAllFeeds()
-
-	// time.NewTicker creates a channel that sends a value every `checkInterval`
-	// This is Go's idiomatic way to do periodic tasks
+	checkAllFeeds(feeds)
 	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop() // defer runs this when main() exits (cleanup)
-
-	// range over a channel blocks until a value arrives, then loops
+	defer ticker.Stop()
 	for range ticker.C {
-		checkAllFeeds()
+		checkAllFeeds(feeds)
 	}
 }

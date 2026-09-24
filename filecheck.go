@@ -2,10 +2,53 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 )
+
+func dataDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("Could not find home directory:", err)
+	}
+	dir := filepath.Join(home, ".local", "share", "rss-notifier")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Fatal("Could not create data directory:", err)
+	}
+	return dir
+}
+
+func feedsFilePath() string { return filepath.Join(dataDir(), "feeds.json") }
+
+func loadFeeds() ([]Feed, error) {
+	path := feedsFilePath()
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		data, err = json.MarshalIndent(defaultFeeds, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return nil, fmt.Errorf("create default config %s: %w", path, err)
+		}
+		log.Printf("Created default feed configuration at %s", path)
+	} else if err != nil {
+		return nil, fmt.Errorf("read config %s: %w", path, err)
+	}
+
+	var feeds []Feed
+	if err := json.Unmarshal(data, &feeds); err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	for i, feed := range feeds {
+		if feed.Name == "" || feed.URL == "" {
+			return nil, fmt.Errorf("config %s: feed %d must include name and url", path, i+1)
+		}
+	}
+	return feeds, nil
+}
 
 // -----------------------------------------------------------------------------
 // State: remembering which entries we've already seen
@@ -15,17 +58,18 @@ import (
 // seenFile is where we save seen entry IDs between runs.
 // It lives in ~/.local/share/rss-notifier/seen.json
 func seenFilePath() string {
-	// os.UserHomeDir() returns the current user's home directory
-	home, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal("Could not find home directory:", err)
+	return filepath.Join(dataDir(), "seen.json")
+}
+
+func isInitialized() bool {
+	_, err := os.Stat(filepath.Join(dataDir(), "initialized"))
+	return err == nil
+}
+
+func markInitialized() {
+	if err := os.WriteFile(filepath.Join(dataDir(), "initialized"), []byte("ok\n"), 0644); err != nil {
+		log.Printf("Warning: could not save initialization state: %v", err)
 	}
-	dir := filepath.Join(home, ".local", "share", "rss-notifier")
-
-	// os.MkdirAll creates the directory (and parents) if they don't exist
-	os.MkdirAll(dir, 0755)
-
-	return filepath.Join(dir, "seen.json")
 }
 
 // loadSeen reads the set of already-seen entry IDs from disk.
