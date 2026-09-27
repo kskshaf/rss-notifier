@@ -32,10 +32,16 @@
   "dismiss_on_copy": true,
   "feeds": [
     {
-      "name": "Example Feed",
-      "url": "https://example.com/feed.xml",
-      "filter": "release",
-      "icon": "example.png"
+      "name":   "LTS Kernel",
+      "url":    "https://www.kernel.org/feeds/kdist.xml",
+      "filter": "6.18",
+      "icon":   "tux.png"
+    },
+    {
+      "name":   "ArchLinux Latest News",
+      "url":    "https://archlinux.org/feeds/news/",
+      "filter": "",
+      "icon":   "arch.png"
     }
   ]
 }
@@ -64,6 +70,8 @@ go run .
 go build -o rss-notifier .
 ./rss-notifier
 ```
+
+亦或是编译后，使用 Windows / Linux 的开机自启来启动进程
 
 首次运行时，程序会静默记录订阅源已有文章作为初始状态；初始化完成后，新文章才会触发通知。之后程序会按 `check_interval` 指定的间隔检查。按 `Ctrl+C` 退出。
 

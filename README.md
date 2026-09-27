@@ -32,10 +32,16 @@ The configuration file is `~/.local/share/rss-notifier/feeds.json`. On first run
   "dismiss_on_copy": true,
   "feeds": [
     {
-      "name": "Example Feed",
-      "url": "https://example.com/feed.xml",
-      "filter": "release",
-      "icon": "example.png"
+      "name":   "LTS Kernel",
+      "url":    "https://www.kernel.org/feeds/kdist.xml",
+      "filter": "6.18",
+      "icon":   "tux.png"
+    },
+    {
+      "name":   "ArchLinux Latest News",
+      "url":    "https://archlinux.org/feeds/news/",
+      "filter": "",
+      "icon":   "arch.png"
     }
   ]
 }
@@ -65,6 +71,7 @@ To build and run a binary:
 go build -o rss-notifier .
 ./rss-notifier
 ```
+Alternatively, after compilation, use Windows / Linux autostart to start the process.
 
 On the first run, the program quietly records existing feed entries as its baseline. It notifies you about new entries after initialization. It then checks feeds at the configured `check_interval`. Press `Ctrl+C` to stop it.
 
